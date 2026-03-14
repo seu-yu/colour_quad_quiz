@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colour Quad Quiz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=DM+Sans:wght@300;400&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0e0d;--surface:#1a1917;--card:#211f1d;
+  --border:rgba(255,255,255,0.07);--text:#f0ede8;
+  --text-muted:rgba(240,237,232,0.45);--accent:#c8a882;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+  --correct:#6dbb8a;--wrong:#cc6e6e;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+
+.nav{display:flex;align-items:center;padding:0 1.5rem;height:52px;
+  background:rgba(15,14,13,0.92);backdrop-filter:blur(10px);
+  border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:50}
+.nav-logo{font-family:var(--serif);font-size:13px;letter-spacing:.14em;color:var(--text-muted)}
+.nav-logo span{color:var(--text);font-weight:500}
+
+.screen{display:none;flex-direction:column;align-items:center;min-height:calc(100vh - 52px)}
+.screen.active{display:flex}
+
+/* ── START ── */
+#screen-start{justify-content:center;padding:2rem 1.5rem}
+.start-inner{width:100%;max-width:420px;display:flex;flex-direction:column;gap:1.6rem}
+.start-title{font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:.08em}
+.start-title span{color:var(--accent)}
+.start-sub{font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em}
+.start-desc{font-family:var(--sans);font-size:13px;color:var(--text);line-height:1.9;letter-spacing:.01em}
+.btn-primary{width:100%;padding:15px;border-radius:12px;background:var(--accent);color:var(--bg);
+  border:none;font-family:var(--mono);font-size:11px;letter-spacing:.08em;cursor:pointer;
+  transition:opacity .15s}
+.btn-primary:hover{opacity:.85}
+.start-note{font-family:var(--mono);font-size:9px;color:var(--text-muted);line-height:1.9;
+  letter-spacing:.04em;border-top:0.5px solid var(--border);padding-top:1.2rem}
+
+/* ── QUIZ ── */
+#screen-quiz{padding-bottom:2rem}
+.progress-bar{width:100%;max-width:420px;height:2px;background:var(--border);margin:4px auto 0}
+.progress-fill{height:100%;background:var(--accent);transition:width .4s ease;width:0%}
+.phase-header{width:100%;max-width:420px;display:flex;align-items:center;
+  justify-content:space-between;padding:1.2rem 1.5rem .6rem}
+.phase-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent)}
+.phase-progress{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+
+.card-wrap{display:flex;align-items:center;justify-content:center;padding:.8rem 1.5rem 0;width:100%}
+
+/* パレットカード：4色を高彩度→低彩度の順に横1列 */
+.palette-card{
+  width:100%;max-width:360px;
+  border-radius:20px;overflow:hidden;
+  border:0.5px solid var(--border);background:var(--card);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+  display:flex;flex-direction:row;
+  height:180px;
+  animation:cardIn .25s ease
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.swatch-col{flex:1;height:100%;transition:filter .2s}
+
+.question-wrap{width:100%;max-width:360px;padding:.8rem 1.5rem 0}
+.question-text{font-family:var(--serif);font-size:18px;font-weight:300;letter-spacing:.04em;
+  color:var(--text-muted);line-height:1.5}
+.question-text em{color:var(--text);font-style:normal}
+
+/* 選択肢 */
+.options-wrap{width:100%;max-width:360px;padding:.8rem 1.5rem 0;display:flex;flex-direction:column;gap:8px}
+.opt-btn{
+  width:100%;padding:13px 16px;border-radius:12px;
+  border:0.5px solid var(--border);background:var(--card);
+  font-family:var(--mono);font-size:11px;letter-spacing:.03em;
+  color:var(--text-muted);cursor:pointer;text-align:left;
+  transition:all .15s;display:flex;align-items:center;gap:10px
+}
+.opt-btn:not([disabled]):hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.opt-btn .opt-swatches{display:flex;gap:3px;flex-shrink:0}
+.opt-btn .opt-swatch{width:10px;height:10px;border-radius:2px}
+.opt-btn .opt-label{flex:1}
+.opt-btn.correct{border-color:var(--correct);color:var(--correct);background:rgba(109,187,138,.08)}
+.opt-btn.wrong{border-color:var(--wrong);color:var(--wrong);background:rgba(204,110,110,.08)}
+.opt-btn.dimmed{opacity:.35}
+
+/* フィードバック */
+.feedback-wrap{width:100%;max-width:360px;padding:.8rem 1.5rem 0;min-height:40px}
+.feedback-text{font-family:var(--mono);font-size:10px;letter-spacing:.06em;line-height:1.8;
+  padding:10px 14px;border-radius:10px;background:var(--card)}
+.feedback-text.correct{color:var(--correct);border:0.5px solid rgba(109,187,138,.3)}
+.feedback-text.wrong{color:var(--wrong);border:0.5px solid rgba(204,110,110,.3)}
+
+.next-wrap{width:100%;max-width:360px;padding:.8rem 1.5rem 0}
+.btn-next{width:100%;padding:13px;border-radius:12px;background:var(--accent);color:var(--bg);
+  border:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer;
+  transition:opacity .15s;opacity:0;pointer-events:none}
+.btn-next.visible{opacity:1;pointer-events:auto}
+.btn-next:hover{opacity:.85}
+
+/* ── RESULT ── */
+#screen-result{justify-content:center;padding:2rem 1.5rem}
+.result-inner{width:100%;max-width:420px;display:flex;flex-direction:column;gap:1.6rem}
+.result-score-wrap{display:flex;align-items:baseline;gap:.4rem}
+.result-score{font-family:var(--serif);font-size:56px;font-weight:300;letter-spacing:.02em;color:var(--accent)}
+.result-score-denom{font-family:var(--serif);font-size:28px;font-weight:300;color:var(--text-muted)}
+.result-title{font-family:var(--serif);font-size:22px;font-weight:300;letter-spacing:.06em}
+.result-comment{font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:.05em;line-height:1.9}
+
+/* ログ */
+.result-log{display:flex;flex-direction:column;gap:8px}
+.result-log-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  color:var(--text-muted);text-transform:uppercase;margin-bottom:.2rem}
+.log-item{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-radius:10px;background:var(--card);border:0.5px solid var(--border)}
+.log-mark{font-family:var(--mono);font-size:12px;flex-shrink:0;width:16px;text-align:center}
+.log-mark.c{color:var(--correct)}.log-mark.w{color:var(--wrong)}
+.log-palette{display:flex;gap:2px;flex-shrink:0}
+.log-swatch{width:10px;height:10px;border-radius:2px}
+.log-info{flex:1;min-width:0}
+.log-name{font-family:var(--serif);font-size:13px;font-weight:300;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-brand{font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:var(--text-muted)}
+
+.share-block{background:var(--card);border:0.5px solid var(--border);border-radius:14px;padding:1.2rem}
+.share-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  color:var(--text-muted);text-transform:uppercase;margin-bottom:.8rem}
+.share-text{font-family:var(--mono);font-size:11px;color:var(--text);
+  line-height:1.9;white-space:pre-wrap;letter-spacing:.02em}
+.btn-copy{margin-top:1rem;width:100%;padding:11px;border-radius:10px;
+  border:0.5px solid var(--border);background:none;color:var(--text-muted);
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer;transition:all .15s}
+.btn-copy:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.btn-copy.copied{color:var(--accent);border-color:var(--accent)}
+.result-btns{display:flex;gap:10px}
+.btn-retry{flex:1;padding:14px;border-radius:12px;background:var(--accent);color:var(--bg);
+  border:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer;transition:opacity .15s}
+.btn-retry:hover{opacity:.85}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo"><span>Colour</span> Quad Quiz</div>
+</nav>
+
+<!-- ════ START ════ -->
+<div id="screen-start" class="screen active">
+  <div class="start-inner">
+    <div>
+      <div class="start-title"><span>Colour</span> Quad Quiz</div>
+      <div class="start-sub" style="margin-top:.3rem">eyeshadow palette quiz</div>
+    </div>
+    <div class="start-desc">
+      パレットの4色を見て、どのブランド・シリーズの何番かを当てるクイズです。<br><br>
+      10問出題。全117パレットの中からランダムに出します。
+    </div>
+    <button class="btn-primary" onclick="startQuiz()">クイズをはじめる →</button>
+    <div class="start-note">
+      色は公式画像から抽出した近似値です。非公式の個人アプリです。
+    </div>
+  </div>
+</div>
+
+<!-- ════ QUIZ ════ -->
+<div id="screen-quiz" class="screen">
+  <div class="phase-header">
+    <div class="phase-label">Quiz</div>
+    <div class="phase-progress" id="quiz-progress-text"></div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="quiz-progress-fill"></div></div>
+
+  <div class="card-wrap">
+    <div class="palette-card" id="quiz-card"></div>
+  </div>
+
+  <div class="question-wrap">
+    <div class="question-text" id="quiz-question"></div>
+  </div>
+
+  <div class="options-wrap" id="quiz-options"></div>
+
+  <div class="feedback-wrap">
+    <div class="feedback-text" id="quiz-feedback" style="display:none"></div>
+  </div>
+
+  <div class="next-wrap">
+    <button class="btn-next" id="btn-next" onclick="nextQuestion()">次の問題 →</button>
+  </div>
+</div>
+
+<!-- ════ RESULT ════ -->
+<div id="screen-result" class="screen">
+  <div class="result-inner">
+    <div>
+      <div class="result-score-wrap">
+        <div class="result-score" id="result-score">0</div>
+        <div class="result-score-denom">/ 10</div>
+      </div>
+      <div class="result-title" id="result-title"></div>
+    </div>
+    <div class="result-comment" id="result-comment"></div>
+    <div class="result-log">
+      <div class="result-log-label">全問振り返り</div>
+      <div id="result-log-items"></div>
+    </div>
+    <div class="share-block">
+      <div class="share-label">share</div>
+      <div class="share-text" id="result-share-text"></div>
+      <button class="btn-copy" id="btn-copy">コピー</button>
+    </div>
+    <div class="result-btns">
+      <button class="btn-retry" onclick="startQuiz()">もう一度挑戦する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PALETTES = [
+  { brand:'YSL', line:'Couture Mini Clutch', no:'820', name:'マジェスティック リヤド', tags:['nude','pink'], colors:['#d59582','#b67d6f','#975350','#aa4b53'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'720', name:'キャプティベイティング デューンズ', tags:['nude','brown'], colors:['#c9b09b','#a47d6c','#64504e','#9d8273'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'100', name:'ストラ ドールズ', tags:['brown','nude'], colors:['#b29584','#d8a992','#6d5246','#b6927f'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'830', name:'アンエクスプロード ガーデン', tags:['earth','nude'], colors:['#d6d6bb','#aa8770','#6d5e47','#93886d'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'700', name:'オーバー ノアール', tags:['cool'], colors:['#98887d','#b3917e','#3c3a39','#5d5c5a'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'730', name:'サンライズ サファリ', tags:['nude','pink'], colors:['#d1b0a3','#ba857a','#a47063','#c38581'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'710', name:'オーバー ブラン', tags:['brown'], colors:['#b6816b','#ab775d','#5b3a32','#b38166'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'200', name:'ギリーズ ドリーム', tags:['nude','brown'], colors:['#cca285','#ad7057','#7b5042','#a46258'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'600', name:'スポンティーニ リリー', tags:['pink'], colors:['#ce9586','#efb7ab','#aa6051','#dd8c7b'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'300', name:'カスバ スパイシーズ', tags:['brown','nude'], colors:['#af8861','#c79371','#714c3a','#c3805b'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'400', name:'バビロン ローズ', tags:['pink'], colors:['#c47f7f','#b58584','#8e5d5a','#b67f73'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'500', name:'メディナ グロウ', tags:['pink','brown'], colors:['#d49a84','#bd827b','#9f555b','#b66f68'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'810', name:'オーバー オランジュ', tags:['brown'], colors:['#997259','#ac8269','#885c47','#c36b4d'] },
+  { brand:'YSL', line:'Couture Mini Clutch', no:'800', name:'オーバー ドゥレ', tags:['earth','brown'], colors:['#be9e77','#a98769','#6b5245','#c2a272'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'01', name:'瑞花 MIZUHANA', tags:['pink','nude'], colors:['#e9d7d4','#b69389','#ad7264','#947369'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'02', name:'陽香色 YOUKOUIRO', tags:['nude','brown'], colors:['#ead2c6','#ba9484','#cd8569','#c37f6c'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'03', name:'光暮 HIKARIGURE', tags:['brown'], colors:['#d69d7e','#d09978','#9d756a','#926c65'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'04', name:'純撫子 SUMINADESHIKO', tags:['pink'], colors:['#f4d9cf','#d89385','#c5757e','#a7656c'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'05', name:'緋影 AKEKAGE', tags:['cool','pink'], colors:['#ead1c0','#b59280','#ae565d','#8c7068'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'06', name:'深奏 FUKAKANADE', tags:['cool'], colors:['#e0d0c9','#c7957c','#948f8d','#969195'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'07', name:'紅咲 BENISAKI', tags:['brown','pink'], colors:['#c68b6b','#bf746a','#7b5f5e','#746a62'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'09', name:'薫風 KAORIKAZE', tags:['earth','brown'], colors:['#bfa0a8','#caa47c','#b3725f','#8c8168'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'10', name:'彩葉集 IROHAATSUME', tags:['earth','brown'], colors:['#b3907e','#a78973','#c9925b','#a05b3b'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'11', name:'宵紫 YOIYUKARI', tags:['cool','nude'], colors:['#c1b4a4','#b9babe','#96697a','#6a5750'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'13', name:'爛漫染 RANMANZOME', tags:['brown'], colors:['#b2826d','#ab7f69','#ab5d51','#a45c5e'] },
+  { brand:'SUQQU', line:'Signature Color Eyes', no:'14', name:'夕琥箔 YUUKOHAKU', tags:['nude','brown'], colors:['#dfb69e','#f3cfa2','#c18880','#9a674d'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Crème', no:'36', name:'タイガー アイ', tags:['brown','nude'], colors:['#d69b7a','#cd8168','#ae7d6a','#5f392f'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Crème', no:'35', name:'ローズ トパーズ', tags:['pink','nude'], colors:['#e0a48e','#dd736a','#93625e','#5f413e'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Crème', no:'46', name:'アイコニック スモーク', tags:['cool'], colors:['#df8d78','#b17f7b','#4f4258','#4e3b48'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Crème', no:'45', name:'エンバー ブロンズ', tags:['brown'], colors:['#e1ae83','#a56f46','#6b5e49','#292a2a'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Crème', no:'47', name:'オリーブ スモーク', tags:['earth'], colors:['#c18a73','#dbb391','#d1b3a6','#3f2c25'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Poudre', no:'38', name:'メタリック モーブ', tags:['cool','pink'], colors:['#d69a9c','#d6afae','#cd86a9','#9d606b'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Poudre', no:'27', name:'イブニング アタイア', tags:['cool','brown'], colors:['#cc8b75','#b99689','#d07b6e','#3d2934'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Poudre', no:'31', name:'スー ル サーブル', tags:['nude','pink'], colors:['#e8b8ac','#d8978b','#b1756d','#965754'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Poudre', no:'30', name:'インソレント ローズ', tags:['pink','cool'], colors:['#f1ccc0','#a14b4d','#cd7b71','#6c3a3b'] },
+  { brand:'TOM FORD', line:'RUNWAY Eye Color Quad Poudre', no:'20', name:'ディスコ ダスト', tags:['brown','nude'], colors:['#e79a6e','#caa17e','#b86a5f','#5d4442'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'1', name:'Sand Dune', tags:['nude'], colors:['#f2d9d7','#cfb3a8','#b79589','#8b7168'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'2', name:'Beach Pebbles', tags:['nude','brown'], colors:['#e2bea8','#c6a187','#bb937a','#a58069'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'3', name:'Sundried Driftwood', tags:['pink','nude'], colors:['#edccc3','#cfa49c','#ac9089','#765856'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'4', name:'Ocean Sunrise', tags:['earth','brown'], colors:['#f0d2b5','#b48f67','#8b6451','#624f46'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'5', name:'Coral Reef', tags:['brown','nude'], colors:['#e0b19c','#bc8975','#b69577','#714e3a'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'6', name:'Caviar Pearls', tags:['cool','pink'], colors:['#dfb4b3','#b07990','#a67974','#6c514d'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'7', name:'Starlight Splendor', tags:['pink','brown'], colors:['#e6b8a3','#c68c86','#a57455','#724d43'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'8', name:'Warm Ocean Sunset', tags:['pink'], colors:['#e8c5b9','#ca9c93','#d68679','#a26a65'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'9', name:'Pink Coral Shells', tags:['pink','nude'], colors:['#f3d1d2','#c98e92','#b69284','#775251'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'10', name:'Sea Grass', tags:['earth'], colors:['#ceb087','#9d9065','#927c5d','#61625c'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'11', name:'Azure Blue Sea', tags:['cool'], colors:['#e2e0e0','#acc3e3','#69a4a8','#526072'] },
+  { brand:'クレ・ド・ポー ボーテ', line:'Ombre Couleur Quadri', no:'12', name:'Purple Ocean Twilight', tags:['cool','nude'], colors:['#ebd0d5','#b9a0c6','#aa9294','#805c71'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'01', name:'ソフトスポット', tags:['nude','brown'], colors:['#c99c7c','#a97c64','#896452','#cc9b85'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'02', name:'ストリート スマート', tags:['earth','brown'], colors:['#d6a27a','#a06849','#b37b65','#d59a4f'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'03', name:'コンパッショネイト', tags:['pink','nude'], colors:['#d9a27b','#a66f52','#ae705c','#cb8771'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'04', name:'オール ハート', tags:['pink','brown'], colors:['#cb9b88','#814e44','#947062','#ad7771'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'05', name:'ディライトフル', tags:['pink'], colors:['#dea390','#bb6756','#965543','#e89f8e'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'06', name:'インジーニアス', tags:['earth','brown'], colors:['#c28b55','#976a48','#706946','#bc9865'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'07', name:'ヴィジョナリー', tags:['brown'], colors:['#c06f38','#905632','#9d674b','#d9a460'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'08', name:'エンチャンティング', tags:['cool','brown'], colors:['#a46552','#9e4746','#926d5e','#d7b58f'] },
+  { brand:'RMK', line:'Synchromatic Eyeshadow Palette', no:'09', name:'スマート アンド ウィッティ', tags:['nude'], colors:['#b8a78b','#d9cbb0','#bd885e','#a9896c'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'01', name:'DESERT FLOWER', tags:['pink','brown'], colors:['#d2aa8f','#d2a098','#a88575','#a36a6e'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'02', name:'ANDROID DREAMS', tags:['brown','nude'], colors:['#d5a89e','#c6a386','#926a57','#c78c78'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'03', name:'BREATHLESS PARISIAN', tags:['nude'], colors:['#d8bdbb','#d2a593','#bb8a6d','#8f654a'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'04', name:'MON PETIT AMI', tags:['earth','brown'], colors:['#d7a584','#bd8c79','#a57059','#c79349'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'05', name:'BEAUTIFUL BONNIE', tags:['pink'], colors:['#d3a7a7','#c69584','#7e5449','#bc917a'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'06', name:'MYSTERIOUS MISTER', tags:['cool','brown'], colors:['#a2908a','#d0a195','#996c5b','#bd7a64'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'09', name:'FLOWER SPACE', tags:['pink','brown'], colors:['#dfb69b','#e0ab95','#be7363','#8c5c4b'] },
+  { brand:'THREE', line:'Stargazing Eyeshadow Quad', no:'10', name:'GARDEN SPACE', tags:['brown'], colors:['#d3b399','#be8c84','#8f695c','#aa7f7e'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'001', name:'Vintage Tutu', tags:['pink','nude'], colors:['#debbae','#d39886','#dba7af','#ac8673'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'002', name:'Cashmere Dream', tags:['nude','brown'], colors:['#ddaa90','#b68b7c','#cb9379','#bb9777'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'003', name:'Timeless Gold', tags:['earth','brown'], colors:['#eecd9e','#cc8566','#c68a5e','#997058'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'004', name:'Autumn Runway', tags:['brown'], colors:['#e4aa89','#af8569','#c07f6f','#755b4f'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'005', name:'Marriage Vow', tags:['pink'], colors:['#ebad96','#d58e73','#da958c','#b87c6a'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'006', name:'Hidden Orchid', tags:['cool','nude'], colors:['#e8e3e3','#a47963','#bda1c8','#96766f'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'007', name:'Memory of Sage', tags:['earth'], colors:['#edb38b','#d3a785','#b07a56','#716755'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'008', name:'Miss Mauve', tags:['nude','pink'], colors:['#b998a3','#9e7f84','#b99b95','#7b5c58'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'009', name:'Enchanted Lilac', tags:['cool','pink'], colors:['#c3a6a0','#d8ada0','#ca939f','#806358'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'010', name:'Apricot Addict', tags:['brown'], colors:['#e6aa89','#dfa466','#d58a7a','#b57651'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'011', name:'Suntan Camel', tags:['nude'], colors:['#dbd4ce','#dca37d','#b58563','#a3764d'] },
+  { brand:'ADDICTION', line:'The Eyeshadow Palette +', no:'012', name:'Heirloom Jewel', tags:['cool','brown'], colors:['#b9aad4','#b98373','#d88768','#a36d7c'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'01', name:'Nostalgic Time', tags:['brown','nude'], colors:['#f8c1a0','#b1846c','#d68967','#a46752'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'02', name:'Bitter Romance', tags:['pink','brown'], colors:['#e5a992','#bd887c','#ac615f','#9a6e59'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'03', name:'Urban Classic', tags:['earth','brown'], colors:['#edbb9a','#c6986d','#899186','#916d5b'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'05', name:'Sunlit Reflet', tags:['nude'], colors:['#f5e4c3','#d8aa8c','#db976e','#926651'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'06', name:'Scented Haze', tags:['pink'], colors:['#f7c7ac','#daac9c','#d5939c','#95675c'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'07', name:'Vintage Petal', tags:['nude','pink'], colors:['#f1ecce','#d2a496','#d0948b','#ac6e59'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'08', name:'Autumn Mellow', tags:['brown','pink'], colors:['#fbdfdd','#f0917f','#d27f6b','#835256'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'09', name:'Grape Meadow', tags:['cool','pink'], colors:['#f9c1b6','#d3b1bf','#b87889','#845747'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'10', name:'Deep Rose Quartz', tags:['pink'], colors:['#ecb88f','#e98680','#ce957d','#664438'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'11', name:'Savage Rose', tags:['pink','brown'], colors:['#e5b67f','#de9383','#d98978','#8f5b49'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'12', name:'Smoky Quartz', tags:['earth'], colors:['#ddb08c','#938e6a','#c79975','#534236'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'13', name:'Sepia Amber', tags:['brown'], colors:['#e2bc92','#aa8865','#cd865e','#996b53'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'14', name:'Mahogany', tags:['brown'], colors:['#e1ab9c','#c0806c','#d38264','#7c4c45'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'15', name:'Flawless Clarity', tags:['nude'], colors:['#e1dfd8','#edc8ac','#cd9476','#734f3a'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'16', name:'Morning Glow', tags:['nude','pink'], colors:['#fed1bf','#eea68b','#c58552','#d18f66'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'17', name:'Neo Depth', tags:['nude','brown'], colors:['#feccab','#e8b799','#b87c68','#694e47'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'18', name:'Harmonized Ray', tags:['brown','nude'], colors:['#fddab9','#e6b2a6','#cd9377','#b17b67'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'19', name:'Ash Moon', tags:['cool'], colors:['#f9e1bf','#ddb1b2','#d69984','#97685a'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'20', name:'Icy Sugar', tags:['cool','pink'], colors:['#e6c9c6','#efbbae','#dfb3ca','#a17473'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'21', name:'Peach Fusion', tags:['nude','pink'], colors:['#e5bab6','#e59f94','#d8908a','#cf7c71'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'EX02', name:'Antique Mauve', tags:['pink','nude'], colors:['#eec5a7','#b59da8','#a86f6b','#836960'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'EX12', name:'Mystic Merge', tags:['cool','pink'], colors:['#efd2bd','#c7b7dc','#e7937f','#a47970'] },
+  { brand:'LUNASOL', line:'Skin Modeling Eyes', no:'EX13', name:'Golden Bouquet', tags:['pink','brown'], colors:['#fccab8','#fabb9f','#e08a9a','#9c6960'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'04434', name:'LAGUNA', tags:['brown','nude'], colors:['#cfa489','#cc8f6d','#b3775d','#a96857'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'04433', name:'KUALA LUMPUR', tags:['pink','brown'], colors:['#c58c78','#8c4c4d','#bf8480','#b8646e'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'03846', name:'KOH RONG', tags:['nude','brown'], colors:['#dbb4a1','#9f6f61','#bb9785','#6b4e44'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'03847', name:'ST PAUL DE VENCE', tags:['nude','pink'], colors:['#b29992','#d18571','#d09688','#644840'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'01801', name:'ORGASM', tags:['pink','nude'], colors:['#caa485','#b57d71','#df957e','#b78b73'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'3970', name:'MOJAVE', tags:['brown','nude'], colors:['#9d7d6c','#4a2f23','#b7825c','#efcbae'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'01803', name:'TAJ MAHAL', tags:['brown'], colors:['#b98c68','#a9816f','#bf7147','#893427'] },
+  { brand:'NARS', line:'Quad Eyeshadow', no:'3972', name:'SINGAPORE', tags:['nude','pink'], colors:['#d5aa90','#ae6e56','#cea384','#c26667'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'870', name:'エメラルド フェザー', tags:['earth','brown'], colors:['#ecba5b','#524936','#c07e68','#7b6e47'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'940', name:'ロイヤル ジャングル', tags:['nude','brown'], colors:['#b58574','#fdc08b','#787473','#fbc697'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'360', name:'ミスティック ピーコック', tags:['cool'], colors:['#0560ad','#53424d','#fe9674','#618c90'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'129', name:'ハニー アンバー', tags:['pink','brown'], colors:['#dd9b83','#8e5a49','#c5704b','#f9a099'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'530', name:'マジェスティック ローズ', tags:['pink'], colors:['#a06046','#7f3b4a','#fec6be','#fd9f9c'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'910', name:'アンドレスド ブラウン', tags:['brown'], colors:['#d37b60','#f9d8cb','#704b3f','#694239'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'258', name:'ワイルド ヌード', tags:['nude','brown'], colors:['#734639','#ebaa78','#de9a85','#8a5b4d'] },
+  { brand:'GUERLAIN', line:'Ombres G', no:'131', name:'バーディー ベージュ', tags:['nude'], colors:['#453d3d','#d0b3a8','#755041','#b87a5e'] },
+];
+
+// ── HSV彩度計算 ──
+function hexToSaturation(hex) {
+  const r = parseInt(hex.slice(1,3),16)/255;
+  const g = parseInt(hex.slice(3,5),16)/255;
+  const b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  if(max === 0) return 0;
+  return (max - min) / max;
+}
+
+// 4色を高彩度→低彩度で並べ替え
+function sortBySaturation(colors) {
+  return [...colors].sort((a,b) => hexToSaturation(b) - hexToSaturation(a));
+}
+
+// ── Quiz state ──
+const TOTAL_Q = 10;
+let questions = [], currentQ = 0, score = 0;
+let answered = false;
+let quizLog = [];
+
+function shuffle(arr) {
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+// クイズタイプをランダムに決める: 'name'=パレット名当て, 'brand'=ブランド当て
+function makeQuestions() {
+  const pool = shuffle(PALETTES).slice(0, TOTAL_Q);
+  return pool.map((correct, qi) => {
+    const type = Math.random() < 0.6 ? 'name' : 'brand';
+    // 誤答候補を作る
+    let wrongPool;
+    if(type === 'name') {
+      // 同ブランドから優先、なければ他から
+      const sameBrand = PALETTES.filter(p => p.brand === correct.brand && p.name !== correct.name);
+      const others = PALETTES.filter(p => p.name !== correct.name);
+      const candidates = shuffle(sameBrand.length >= 3 ? sameBrand : others);
+      wrongPool = candidates.slice(0, 3);
+    } else {
+      // brandクイズ：ブランドが異なるものから3択
+      const diff = PALETTES.filter(p => p.brand !== correct.brand);
+      const uniqueBrands = [...new Set(diff.map(p=>p.brand))];
+      wrongPool = shuffle(uniqueBrands).slice(0,3).map(b => PALETTES.find(p=>p.brand===b));
+    }
+    const options = shuffle([correct, ...wrongPool]);
+    return { correct, options, type };
+  });
+}
+
+function startQuiz() {
+  questions = makeQuestions();
+  currentQ = 0; score = 0; quizLog = [];
+  showScreen('screen-quiz');
+  renderQuestion();
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function renderQuestion() {
+  const {correct, options, type} = questions[currentQ];
+  answered = false;
+
+  // progress
+  const pct = (currentQ / TOTAL_Q) * 100;
+  document.getElementById('quiz-progress-fill').style.width = pct + '%';
+  document.getElementById('quiz-progress-text').textContent = `${currentQ+1} / ${TOTAL_Q}`;
+
+  // palette card（高彩度→低彩度に横並び）
+  const sortedColors = sortBySaturation(correct.colors);
+  const card = document.getElementById('quiz-card');
+  card.innerHTML = sortedColors.map(c => `<div class="swatch-col" style="background:${c}"></div>`).join('');
+
+  // question text
+  const qEl = document.getElementById('quiz-question');
+  if(type === 'name') {
+    qEl.innerHTML = `<em>${correct.brand}</em> の<br>どのパレット？`;
+  } else {
+    qEl.innerHTML = `このパレットはどの<br><em>ブランド</em>？`;
+  }
+
+  // options
+  const optWrap = document.getElementById('quiz-options');
+  optWrap.innerHTML = '';
+  options.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-btn';
+    const isCorrectOpt = (p.brand === correct.brand && p.name === correct.name);
+
+    if(type === 'name') {
+      // パレット名当て：ミニスウォッチ + 名前
+      const swatchHtml = sortBySaturation(p.colors).map(c=>`<div class="opt-swatch" style="background:${c}"></div>`).join('');
+      btn.innerHTML = `<div class="opt-swatches" style="visibility:hidden">${swatchHtml}</div><div class="opt-label">${p.name}${p.no ? ' <span style="color:var(--text-muted);font-size:9px">No.'+p.no+'</span>' : ''}</div>`;
+    } else {
+      // ブランド当て：ブランド名
+      btn.innerHTML = `<div class="opt-label">${p.brand}</div>`;
+    }
+    btn.dataset.correct = isCorrectOpt ? '1' : '0';
+    btn.addEventListener('click', () => handleAnswer(btn, isCorrectOpt, correct));
+    optWrap.appendChild(btn);
+  });
+
+  // feedback / next reset
+  const fb = document.getElementById('quiz-feedback');
+  fb.style.display = 'none';
+  fb.className = 'feedback-text';
+  const btn = document.getElementById('btn-next');
+  btn.classList.remove('visible');
+  btn.textContent = currentQ < TOTAL_Q - 1 ? '次の問題 →' : '結果を見る →';
+}
+
+function handleAnswer(clickedBtn, isCorrect, correct) {
+  if(answered) return;
+  answered = true;
+
+  const allBtns = document.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => {
+    b.disabled = true;
+    // スウォッチを表示
+    const sw = b.querySelector('.opt-swatches');
+    if(sw) sw.style.visibility = 'visible';
+    if(b.dataset.correct === '1') b.classList.add('correct');
+    else if(b === clickedBtn && !isCorrect) b.classList.add('wrong');
+    else b.classList.add('dimmed');
+  });
+
+  if(isCorrect) score++;
+  quizLog.push({ correct, isCorrect });
+
+  const fb = document.getElementById('quiz-feedback');
+  fb.style.display = 'block';
+  if(isCorrect) {
+    fb.classList.add('correct');
+    fb.textContent = `正解！ ${correct.brand} ${correct.line} No.${correct.no} — ${correct.name}`;
+  } else {
+    fb.classList.add('wrong');
+    fb.textContent = `不正解。正解は ${correct.brand} "${correct.name}" (No.${correct.no}) でした。`;
+  }
+
+  document.getElementById('btn-next').classList.add('visible');
+}
+
+function nextQuestion() {
+  currentQ++;
+  if(currentQ >= TOTAL_Q) {
+    showResult();
+  } else {
+    renderQuestion();
+  }
+}
+
+function showResult() {
+  document.getElementById('quiz-progress-fill').style.width = '100%';
+  showScreen('screen-result');
+
+  document.getElementById('result-score').textContent = score;
+
+  const pct = score / TOTAL_Q;
+  let title, comment;
+  if(pct === 1) {
+    title = 'パーフェクト 🎉';
+    comment = '全問正解！アイシャドウへの愛と知識が溢れていますね。';
+  } else if(pct >= 0.8) {
+    title = '上級者';
+    comment = 'ほぼ完璧。デパコスの色を見分ける目が鋭い。';
+  } else if(pct >= 0.6) {
+    title = '中級者';
+    comment = '半分以上正解！日ごろからパレットを研究している感じが出ています。';
+  } else if(pct >= 0.4) {
+    title = 'まだまだこれから';
+    comment = 'もう少し！色の微妙な違いを意識してみると正解率が上がるかも。';
+  } else {
+    title = '初心者';
+    comment = 'ブランドごとの色の傾向を覚えていくと得点アップできるはず。';
+  }
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-comment').textContent = comment;
+
+  // ログ
+  const logEl = document.getElementById('result-log-items');
+  logEl.innerHTML = quizLog.map(({correct, isCorrect}) => {
+    const sorted = sortBySaturation(correct.colors);
+    const swatches = sorted.map(c=>`<div class="log-swatch" style="background:${c}"></div>`).join('');
+    return `<div class="log-item">
+      <div class="log-mark ${isCorrect?'c':'w'}">${isCorrect?'○':'✕'}</div>
+      <div class="log-palette">${swatches}</div>
+      <div class="log-info">
+        <div class="log-name">${correct.name}</div>
+        <div class="log-brand">${correct.brand} / No.${correct.no}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // シェアテキスト生成
+  const marks = quizLog.map(({isCorrect}) => isCorrect ? '❤️' : '💔').join('');
+  const shareLines = [
+    `Colour Quad Quiz ${score}/${TOTAL_Q}`,
+    marks,
+    '',
+    '#colour_quad_quiz',
+    'https://seu-yu.github.io/colour_quad_quiz/',
+  ];
+  document.getElementById('result-share-text').textContent = shareLines.join('\n');
+
+  // コピーボタン
+  document.getElementById('btn-copy').onclick = () => {
+    const txt = document.getElementById('result-share-text').textContent;
+    navigator.clipboard.writeText(txt).then(() => {
+      const btn = document.getElementById('btn-copy');
+      btn.textContent = 'コピー済み ✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
+    });
+  };
+}
+</script>
+</body>
+</html>
